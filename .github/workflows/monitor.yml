@@ -2,6 +2,7 @@ name: Milgram Voting Monitor
 
 on:
   schedule:
+    # Запускать каждые 30 минут
     - cron: '*/30 * * * *'
   workflow_dispatch:
 
