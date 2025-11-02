@@ -1,0 +1,39 @@
+name: Milgram Voting Monitor
+
+   on:
+     schedule:
+       # Запускать каждые 30 минут
+       - cron: '*/30 * * * *'
+     
+     workflow_dispatch:  # Позволяет запускать вручную
+
+   jobs:
+     monitor:
+       runs-on: ubuntu-latest
+       
+       steps:
+       - name: Checkout repository
+         uses: actions/checkout@v4
+         with:
+           token: ${{ secrets.GITHUB_TOKEN }}
+       
+       - name: Set up Python
+         uses: actions/setup-python@v4
+         with:
+           python-version: '3.11'
+       
+       - name: Install dependencies
+         run: |
+           pip install -r requirements.txt
+       
+       - name: Run monitoring script
+         run: |
+           python milgram_monitor.py
+       
+       - name: Commit and push changes
+         run: |
+           git config --local user.email "github-actions[bot]@users.noreply.github.com"
+           git config --local user.name "github-actions[bot]"
+           git add milgram_voting_data.xlsx
+           git diff --quiet && git diff --staged --quiet || git commit -m "Update voting data - $(date '+%Y-%m-%d %H:%M:%S')"
+           git push
