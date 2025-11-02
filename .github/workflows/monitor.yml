@@ -1,5 +1,4 @@
 name: Milgram Voting Monitor
-
 on:
   schedule:
     # Запускать каждые 30 минут
