@@ -34,7 +34,6 @@ def fetch_voting_data():
         print(f"Найдено процентов голосования: {voting_percentages}")
         
         if not voting_percentages:
-            
             all_percentages = re.findall(r'(\d+\.?\d*)\s*%', page_text)
             print(f"Все проценты на странице: {all_percentages}")
             
@@ -53,15 +52,23 @@ def fetch_voting_data():
         
         results = []
         
-        prisoner_numbers = ["002", "003", "004", "007", "008", "009", "010"]
-        percentage_index = 0
-        
-        for number in prisoner_numbers:
-            if percentage_index < len(valid_percentages):
-                name = ALL_PRISONERS.get(number, f"Prisoner {number}")
+        prisoner_data = []
+        for i in range(0, len(valid_percentages), 2):
+            if i + 1 < len(valid_percentages):
+                innocent = valid_percentages[i]
+                guilty = valid_percentages[i + 1]
                 
-                innocent_percent = valid_percentages[percentage_index]
-                guilty_percent = round(100.0 - innocent_percent, 2)
+                if abs((innocent + guilty) - 100.0) < 0.1:
+                    prisoner_data.append((innocent, guilty))
+        
+        print(f"Пары данных заключенных: {prisoner_data}")
+        
+        prisoner_numbers = ["002", "003", "004", "007", "008", "009", "010"]
+        
+        for idx, (innocent_percent, guilty_percent) in enumerate(prisoner_data):
+            if idx < len(prisoner_numbers):
+                number = prisoner_numbers[idx]
+                name = ALL_PRISONERS.get(number, f"Prisoner {number}")
                 
                 results.append({
                     "Имя": f"{name} ({number})",
@@ -70,8 +77,6 @@ def fetch_voting_data():
                     "Процент невиновен": innocent_percent,
                     "Процент виновен": guilty_percent
                 })
-                
-                percentage_index += 1
         
         if len(results) == 0:
             print("⚠️  Не найдено ни одного валидного процента")
