@@ -53,7 +53,7 @@ def fetch_voting_data():
         time_str = current_time.strftime("%H:%M:%S")
         
         results = []
-        prisoner_numbers = ["002", "003", "004", "007"]
+        prisoner_numbers = ["002", "003", "004", "007", "008"]
         
         for i in range(len(valid_percentages)):
             if i < len(prisoner_numbers):
