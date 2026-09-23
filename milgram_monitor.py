@@ -6,119 +6,103 @@ import re
 import os
 
 URL = "https://milgram.jp/judge/result/season_3"
+FILENAME = "milgram_voting_data.xlsx"
 
-ALL_PRISONERS = {
+NAMES = {
+    "001": "Haruka",
     "002": "Yuno",
     "003": "Fuuta",
     "004": "Muu",
+    "005": "Shidou",
+    "006": "Mahiru",
     "007": "Kazui",
     "008": "Amane",
     "009": "Mikoto",
     "010": "Kotoko"
 }
 
+ENDED_MARKER = "投票は終了"
+
+
 def fetch_voting_data():
     try:
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
-        response = requests.get(URL, headers=headers)
+        response = requests.get(URL, headers=headers, timeout=30)
         response.raise_for_status()
-        
-        soup = BeautifulSoup(response.content, 'html.parser')
-        page_text = soup.get_text()
-        
-        voting_percentages = re.findall(r'(\d+\.?\d*)\s*%\s*―', page_text)
-        
-        print(f"Найдено процентов голосования: {voting_percentages}")
-        
-        if not voting_percentages:
-            all_percentages = re.findall(r'(\d+\.?\d*)\s*%', page_text)
-            print(f"Все проценты на странице: {all_percentages}")
-            
-            voting_percentages = [p for p in all_percentages if 5 <= float(p) <= 95 and float(p) != 50.0]
-            print(f"Отфильтрованные проценты (5-95%, не 50%): {voting_percentages}")
-        
-        percentages = [float(p) for p in voting_percentages]
-        valid_percentages = [p for p in percentages if p != 50.0]
-        
-        print(f"Валидные проценты (исключая 50%): {valid_percentages}")
-        
-        if len(valid_percentages) == 0:
-            print(f"⚠️ Не найдено валидных процентов")
-            return None
-        
-        current_time = datetime.now()
-        date_str = current_time.strftime("%Y-%m-%d")
-        time_str = current_time.strftime("%H:%M:%S")
-        
+        response.encoding = "utf-8"
+        html = response.text
+
+        parts = re.split(r"sub_judge_result_pc_label_(\d{3})\.png", html)
+
+        now = datetime.now()
+        date_str = now.strftime("%Y-%m-%d")
+        time_str = now.strftime("%H:%M:%S")
+
         results = []
-        prisoner_numbers = ["002", "003", "004", "007", "008"]
-        
-        for i in range(len(valid_percentages)):
-            if i < len(prisoner_numbers):
-                number = prisoner_numbers[i]
-                name = ALL_PRISONERS.get(number, f"Prisoner {number}")
-                
-                guilty_percent = valid_percentages[i]
-                innocent_percent = round(100.0 - guilty_percent, 2)
-                
-                results.append({
-                    "Имя": f"{name} ({number})",
-                    "Дата": date_str,
-                    "Время": time_str,
-                    "Процент невиновен": innocent_percent,
-                    "Процент виновен": guilty_percent
-                })
-        
-        return results
-    
+
+        for i in range(1, len(parts), 2):
+            number = parts[i]
+            block_text = BeautifulSoup(parts[i + 1], "html.parser").get_text(" ")
+            name = NAMES.get(number, f"Prisoner {number}")
+
+            innocent_match = re.search(r"―\s*(\d+(?:\.\d+)?)\s*%", block_text)
+            guilty_match = re.search(r"(\d+(?:\.\d+)?)\s*%\s*―", block_text)
+
+            if not innocent_match or not guilty_match:
+                print(f"{name} ({number}): нет данных голосования, пропуск")
+                continue
+
+            innocent = float(innocent_match.group(1))
+            guilty = float(guilty_match.group(1))
+
+            if ENDED_MARKER in block_text:
+                print(f"{name} ({number}): голосование завершено, пропуск")
+                continue
+
+            if innocent == 50.0 and guilty == 50.0:
+                print(f"{name} ({number}): голосование не началось, пропуск")
+                continue
+
+            print(f"{name} ({number}): активно")
+            results.append({
+                "Имя": f"{name} ({number})",
+                "Дата": date_str,
+                "Время": time_str,
+                "Процент невиновен": innocent,
+                "Процент виновен": guilty
+            })
+
+        return results if results else None
+
     except Exception as e:
         print(f"Ошибка при получении данных: {e}")
-        import traceback
-        traceback.print_exc()
         return None
 
-def save_to_excel(data, filename="milgram_voting_data.xlsx"):
+
+def save_to_excel(data, filename=FILENAME):
     df_new = pd.DataFrame(data)
-    
+
     if os.path.exists(filename):
-        try:
-            df_existing = pd.read_excel(filename)
-            df_combined = pd.concat([df_existing, df_new], ignore_index=True)
-            df_combined.to_excel(filename, index=False)
-            print(f"✓ Данные добавлены в существующий файл {filename}")
-            print(f"  Всего записей в файле: {len(df_combined)}")
-        except Exception as e:
-            print(f"⚠️ Ошибка при чтении файла: {e}")
-            print(f"   Создаю новый файл...")
-            df_new.to_excel(filename, index=False)
+        df_existing = pd.read_excel(filename)
+        df_combined = pd.concat([df_existing, df_new], ignore_index=True)
     else:
-        df_new.to_excel(filename, index=False)
-        print(f"✓ Создан новый файл {filename}")
-    
-    return filename
+        df_combined = df_new
+
+    df_combined.to_excel(filename, index=False)
+    print(f"Сохранено в {filename}, всего записей: {len(df_combined)}")
+
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print(f"ЗАПУСК МОНИТОРИНГА - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 60)
-    
+    print(f"Запуск: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
     data = fetch_voting_data()
-    
+
     if data:
-        save_to_excel(data, "milgram_voting_data.xlsx")
-        
-        print("\n📊 ТЕКУЩИЕ РЕЗУЛЬТАТЫ:")
-        print(f"{'─' * 60}")
-        print(f"  Отслеживается заключенных: {len(data)}")
-        print(f"{'─' * 60}")
+        save_to_excel(data)
         for entry in data:
-            print(f"  {entry['Имя']:15} → "
-                  f"Невиновен: {entry['Процент невиновен']:6.2f}% | "
-                  f"Виновен: {entry['Процент виновен']:6.2f}%")
-        print(f"{'─' * 60}")
+            print(f"{entry['Имя']}: невиновен {entry['Процент невиновен']:.2f}% | "
+                  f"виновен {entry['Процент виновен']:.2f}%")
     else:
-        print("❌ Не удалось получить данные")
-    
-    print("\n✓ Готово!")
+        print("Активных голосований не найдено, файл не изменён")
